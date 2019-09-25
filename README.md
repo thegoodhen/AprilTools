@@ -41,7 +41,7 @@ Having installed the plugin into Blender, you can go to File->Import->Import Apr
 You then need to choose whether you want the tracking data to be interpreted as a tag being static and the camera orbiting around it (default), or whether you want the camera to be static and the tag to move.
 
 The tracking data will be located in the folder your footage is in. 
-Optionally, you can now right-click the camera and on the right Blender panel go to Context->Background Images; there you click on Add Image and you select your footage.
+Optionally, you can now right-click the camera and on the right Blender panel go to Context:Object data->Background Images; there you click on Add Image, then on "Movie Clip" , "Open clip" and you select your footage (hit "a" to select all).
 
 The importer will generate a sequence of keyframes for the camera or the tag, based on what you selected as a target. In some cases, this sequence can be off by a single frame with respect to the actual footage. To fix this, select the keyframes and hit "g" to move them around, until you see the marker Blender object match up with the tag on the video.
 
