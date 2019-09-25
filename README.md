@@ -47,3 +47,6 @@ The importer will generate a sequence of keyframes for the camera or the tag, ba
 This software is and always will be free, but you can support the development here:
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QHXE57NKFC3QL)
+
+ETH: 0x2E4d8B0319D3e1E6428aC9B7dDf862D376A99e21
+BTC: 1DTzg2yxkgudJNwYmGrbg6T9DPLNbDMkbq
