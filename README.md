@@ -42,7 +42,8 @@ Optionally, you can now right-click the camera and on the right Blender panel go
 
 The importer will generate a sequence of keyframes for the camera or the tag, based on what you selected as a target. In some cases, this sequence can be off by a single frame with respect to the actual footage. To fix this, select the keyframes and hit "g" to move them around, until you see the marker Blender object match up with the tag on the video.
 
-##Donations
+## Donations
 
 This software is and always will be free, but you can support the development here:
+
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QHXE57NKFC3QL)
