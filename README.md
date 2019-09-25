@@ -47,7 +47,7 @@ The importer will generate a sequence of keyframes for the camera or the tag, ba
 
 ## Donations
 
-This software is and always will be free, but you can support the development here:
+This software is and always will be free, but if you support the development, it will be largely appreciated:
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QHXE57NKFC3QL)
 
