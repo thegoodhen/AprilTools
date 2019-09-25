@@ -1,5 +1,6 @@
 # AprilTools
 A marker-based camera tracker for Blender based around the AprilTags Library by University of Michigan
+https://april.eecs.umich.edu/software/apriltag.html
 
 ## Usage
 Download everything (Clone or download -> Download ZIP); unpack.
