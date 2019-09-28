@@ -2,6 +2,10 @@
 A marker-based camera tracker for Blender based around the AprilTags Library by University of Michigan
 https://april.eecs.umich.edu/software/apriltag.html
 
+## Staying in the loop
+Subscribe to this youtube channel to get updates when a new version of AprilTools is released!
+https://www.youtube.com/watch?v=2vklmguETyI&feature=youtu.be
+
 ## Usage
 Download everything (Clone or download -> Download ZIP); unpack.
 Print out one of the pages of the pdf files in the ./bin/ directory;
