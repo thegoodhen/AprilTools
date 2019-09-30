@@ -154,9 +154,10 @@ double getPixelF(apriltag_detection_t* det, double* principal)
  int int1Found=g2d_line_intersect_line(&lAB, &lCD, m);
  int int2Found=g2d_line_intersect_line(&lAD, &lBC, n);
 
+ //If the intersections are "too far", this suggest the lines being close to parallel. In such cases, the result is numerically unstable and should be discarded.
  double dist1=sqrt((det->c[0]-m[0])*(det->c[0]-m[0])+(det->c[1]-m[1])*(det->c[1]-m[1]));
  double dist2=sqrt((det->c[0]-n[0])*(det->c[0]-n[0])+(det->c[1]-n[1])*(det->c[1]-n[1]));
- double thres=5000;
+ double thres=5*principal[0];//since the principal point is in the middle of the image, we can use it to dynamically adjust the threshold distance between the tag center and principal points, beyond which the result gets discarded, based on the resolution
 
 
  if(int1Found && int2Found && dist1<thres && dist2<thres)
