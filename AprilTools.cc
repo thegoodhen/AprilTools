@@ -1,3 +1,13 @@
+/*
+ * Coded by thegoodhen 2019, theegodhen@gmail.com
+ * Released under GNU GPL 3, see file LICENCE for more info.
+ *
+ * Focal length estimation based on "Using Vanishing Points for Camera Calibration and Coarse 3D Reconstruction from a Single Image" by E. Guillou, D. Meneveaux, E. Maisel, K. Bouatouch.
+ * Based around the AprilTags library by University of Michigan.
+ * Copyright notice from AprilTags library below:
+ * */
+
+
 /* Copyright (C) 2013-2016, The Regents of The University of Michigan.
 All rights reserved.
 
@@ -89,7 +99,7 @@ double sensorWidthPx=-1;//sensor width in px
 
 
 /*
- * Fill the remaining intrinsic parameters of the camera, given the know ones*/
+ * Fill the remaining intrinsic parameters of the camera, given the known ones*/
 void fillIntrinsics()
 {
   double pxSize=-1;//pixel size in mm
@@ -113,11 +123,16 @@ void fillIntrinsics()
   }
 }
 
+/* Print the intrinsic camera parameters to stdout
+ * */
 void printIntrinsics()
 {
   printf("Focal length: %.2f mm (%.2f px); sensor width: %.2f mm\r\n",fmm,fpx,sensorWidth);
 }
 
+/*
+ * Calculate the pixel focal length, based on the detection object provided and the principal point.
+ * */
 double getPixelF(apriltag_detection_t* det, double* principal)
 {
  g2d_line_t lAB;
@@ -152,6 +167,10 @@ double getPixelF(apriltag_detection_t* det, double* principal)
 }
 
 
+/**
+ * Given alpha(pixel aspect ratio), principal point (usually the center of the image) and two intersections (m, n), calculate the focal length in pixels and return it. 
+ * Focal length estimation based on "Using Vanishing Points for Camera Calibration and Coarse 3D Reconstruction from a Single Image" by E. Guillou, D. Meneveaux, E. Maisel, K. Bouatouch.
+ * */
 double getPixelFFromIntersections(double alpha, double* principal, double*m, double* n)
 {
   double um=m[0];
@@ -165,6 +184,9 @@ double getPixelFFromIntersections(double alpha, double* principal, double*m, dou
   return sqrt(-(A)-(B));
 }
 
+/**
+ * Given a std::vector of double values, calculate the median value and return it.
+ * */
 double calculateMedian(std::vector<double>theVec)
 {
   if(theVec.size()==0)
@@ -183,6 +205,9 @@ double calculateMedian(std::vector<double>theVec)
 }
 
 
+/**
+ * Given a path to some folder, find files that contain a number in their name and then sort them, outputting the sorted vector of string filenames.
+ * */
 std::vector<std::string> getSortedFilenames(const char* path)
 {
   std::vector<std::string> returnVec;
@@ -208,6 +233,9 @@ std::vector<std::string> getSortedFilenames(const char* path)
   return returnVec;
 }
 
+/**
+ * Given two filenames (as std::string), which contain a number in them, parse the two numbers and then return 1 if the number in the first one is smaller and 0 otherwise.
+ * */
 uint8_t compareFilenames(std::string str1, std::string str2)
 {
   int number;
@@ -225,8 +253,6 @@ uint8_t compareFilenames(std::string str1, std::string str2)
       std::string("$1")
       );
 
-  //printf(output.c_str());
-  //printf("    %d\n",number2);
   number=atoi(output.c_str());
   number2=atoi(output2.c_str());
 
@@ -246,77 +272,10 @@ uint8_t compareFilenames(std::string str1, std::string str2)
 }
 
 
-// Invoke:
-//
-// tagtest [options] input.pnm
-
-// return the vector of Euler angles. The matrix seems to be ZYX, so those angles are calculated and returned as a vector.
-// It is the callers responsibility to deallocate the returned vector.
-//
-/*
-int imageTest()
-{
-   String imageName("img00097.png"); // by default
-    Mat image;
-    image = imread( imageName, IMREAD_COLOR ); // Read the file
-    if( image.empty() )                      // Check for invalid input
-    {
-        cout <<  "Could not open or find the image" << std::endl ;
-        return -1;
-    }
-    namedWindow( "Display window", WINDOW_AUTOSIZE ); // Create a window for display.
-    imshow( "Display window", image );                // Show our image inside it.
-    waitKey(0); // Wait for a keystroke in the window
-    return 0; 
-}
-
-*/
-int hovno( int argc, char** argv )
-{
- char* imageName = argv[1];
- Mat image;
- image = imread( imageName, IMREAD_COLOR );
- if( argc != 2 || !image.data )
- {
-   printf( " No image slepice \n " );
-   return -1;
- }
- Mat gray_image;
- cvtColor( image, gray_image, COLOR_BGR2GRAY );
- imwrite( "Gray_Image.jpg", gray_image );
- namedWindow( imageName, WINDOW_AUTOSIZE );
- namedWindow( "Gray image", WINDOW_AUTOSIZE );
- imshow( imageName, image );
- imshow( "Gray image", gray_image );
- waitKey(0);
- return 0;
-}
-
-/*
-image_u8_t* loadImage(const char* path)
-{
-  printf("kokodak");
- Mat image = imread(path, 0);//TODO: deallocate?
- int the_width=image.cols;
- int the_height=image.rows;
- image_u8_t *returnImage = image_u8_create(the_width, the_height);
- for(int i=0;i<the_height;i++)
- {
-   for(int j=0;j<the_width;j++)
-   {
-     uint8_t val=image.at<uint8_t>(i,j);
-     //printf("%d",val);
-     returnImage->buf[i*returnImage->stride+j]=val;
-   }
- }
-
- return returnImage;
-
-
-}
-*/
-
-
+/**
+ *
+ * Convert rotation matrix to Euler angles, returning them as a matd_t* vector.
+ **/
 matd_t* getEulers(matd_t* Mr)
 {
   double rx,ry,rz;
@@ -346,6 +305,13 @@ matd_t* getEulers(matd_t* Mr)
 }
 
 
+/**
+ * Attempt to detect tags in the image at 100% scale. If this fails, scale the image down twice, attempt to do it again. 
+ * If it still fails, scale down to quarter the original size and reattempt.
+ * Detecting the tag on a lower resolution image is more robust to motion blur, but yields less accurate results.
+ *
+ * Update the output arguments, which indicate how many images had to be rescaled to get the detection and on how many images the detection failed completely.
+ * */
 zarray_t* detectTagsRobust(apriltag_detector_t* td, image_u8_t* im, int* blurryPicsCount, int* badPicsCount)
 {
     if(quick)
@@ -389,12 +355,18 @@ zarray_t* detectTagsRobust(apriltag_detector_t* td, image_u8_t* im, int* blurryP
 }
 
 //from https://stackoverflow.com/questions/20446201/how-to-check-if-string-ends-with-txt/20446257
+/*
+ * Return whether the std::string provided ends with the provided suffix.
+*/
 bool has_suffix(const std::string &str, const std::string &suffix)
 {
     return str.size() >= suffix.size() &&
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
+/**
+ * Given a filename as a char*, decide whether it is acceptable as a frame of a sequence. To pass the test, the file needs to have a valid image suffix and has to contain a number.
+ * */
 bool isFileAcceptable(char* fileName)
 {
   std::regex theRegex(".*[0-9].*");
@@ -411,15 +383,6 @@ int main(int argc, char *argv[])
   getopt_t *getopt = getopt_create();
 
   getopt_add_bool(getopt, 'h', "help", 0, "Show this help");
-//getopt_add_bool(getopt, 'd', "debug", 0, "Enable debugging output (slow)");
-  //getopt_add_bool(getopt, 'q', "quiet", 0, "Reduce output");
-  //getopt_add_string(getopt, 'l', "family", "tag36h11", "Tag family to use");
-  //getopt_add_int(getopt, 'i', "iters", "1", "Repeat processing on input set this many times");
-  //getopt_add_int(getopt, 't', "threads", "1", "Use this many CPU threads");
-  //getopt_add_int(getopt, 'a', "hamming", "1", "Detect tags with up to this many bit errors.");
-  //getopt_add_double(getopt, 'x', "decimate", "1.0", "Decimate input image by this factor");
-  //getopt_add_double(getopt, 'b', "blur", "0.0", "Apply low-pass blur to input; negative sharpens");
-  //getopt_add_bool(getopt, '0', "refine-edges", 1, "Spend more time trying to align edges of tags");
   getopt_add_string(getopt, 'p', "path", "", "Path to the source image sequence");
   getopt_add_double(getopt, 'f', "focal-length-mm", "-1", "Focal length in mm");
   getopt_add_double(getopt, 'F', "focal-length-pixels", "-1", "Focal length in pixels");
@@ -488,8 +451,8 @@ int main(int argc, char *argv[])
   {
     if(fmm==-1 && fpx==-1)
     {
-      printf("ERROR. You need to specify either a pair of focal length in mm (--focal-length-mm) and the sensor width (--sensor-width), or specify the focal length in pixels (--focal-length-px).\r\n");
-      printf("To estimate the focal length from your footage, first run apriltools.exe --path PATH_TO_FOOTAGE --estimate-focal-length, then rerun it on your desired footage, providing the newly obtained estimate using the parameter --focal-length-mm .");
+      printf("ERROR. You need to specify either a pair of focal length in mm (--focal-length-mm) and the sensor width (--sensor-width), or specify the focal length in pixels (--focal-length-pixels).\r\n");
+      printf("To estimate the focal length from your footage, first run apriltools.exe --path PATH_TO_FOOTAGE --estimate-focal-length, then rerun it on your desired footage, providing the newly obtained estimate using the parameter --focal-length-pixels");
       return 1;
     }
 
