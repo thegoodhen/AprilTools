@@ -301,8 +301,8 @@ matd_t* getEulers(matd_t* Mr)
     rz=atan2(-MATD_EL(Mr,1,2),MATD_EL(Mr,1,1));
     rx=0;
  }
- float data[]={rx,ry,rz};
- return matd_create_dataf(1,3,data);
+ double data[]={rx,ry,rz};
+ return matd_create_data(1,3,data);
 }
 
 
