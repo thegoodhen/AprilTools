@@ -29,7 +29,7 @@ def read_some_data(context, filepath, type):
     bpy.context.active_object.name = 'marker'
     marker=bpy.data.objects['marker']
 
-    bpy.ops.object.camera_add(enter_editmode=False,align='VIEW',location=(0,0,0),rotation=(0,0,0))
+    bpy.ops.object.camera_add(enter_editmode=False,location=(0,0,0),rotation=(0,0,0))
     bpy.context.active_object.name = 'Camera'
     cam=bpy.data.objects['Camera']
         
