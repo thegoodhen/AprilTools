@@ -88,6 +88,7 @@ using namespace cv;
 uint8_t compareFilenames(std::string, std::string);
 bool isFileAcceptable(char*);
 bool has_suffix(const std::string &, const std::string &);
+int getFilenameNumber(std::string);
 bool quick=false;
 
 double getPixelFFromIntersections(double, double* , double*, double* );
@@ -270,6 +271,17 @@ uint8_t compareFilenames(std::string str1, std::string str2)
   {
     return 1;
   }
+}
+
+int getFilenameNumber(std::string fileName)
+{
+  std::string output = std::regex_replace(
+      fileName,
+      std::regex("[^0-9]*([0-9]+).*"),
+      std::string("$1")
+      );
+ int number=atoi(output.c_str());
+ return number;
 }
 
 
@@ -522,16 +534,17 @@ int main(int argc, char *argv[])
 
   int blurryPicsCount=0;
   int badPicsCount=0;
-  for (int frameNo=0;frameNo<filesList.size();frameNo++) {
-    printf("Processed %d/%d files, out of which %d blurry (?) and %d were unusable (no tag found).\r\n",frameNo+1,filesList.size(),blurryPicsCount,badPicsCount);
+  for (int i=0;i<filesList.size();i++) {
+    printf("Processed %d/%d files, out of which %d blurry (?) and %d were unusable (no tag found).\r\n",i+1,filesList.size(),blurryPicsCount,badPicsCount);
 
-    const char* fileName=filesList[frameNo].c_str();
+    const char* fileName=filesList[i].c_str();
+    int frameNo=getFilenameNumber(std::string(fileName));
     int hamm_hist[hamm_hist_max];
     memset(hamm_hist, 0, sizeof(hamm_hist));
 
     //char path[100];
-    //sprintf(path,"../../../../realFootage4/New Folder/%05d.jpg",frameNo);
-    //sprintf(path,"test_image.png",frameNo);
+    //sprintf(path,"../../../../realFootage4/New Folder/%05d.jpg",i);
+    //sprintf(path,"test_image.png",i);
     //zarray_get(inputs, input, &path);
     //printf("loading %s %s\n", path, fileName);
 
@@ -582,6 +595,7 @@ int main(int argc, char *argv[])
       fillIntrinsics();
       if(!estimateF)
       {
+	fprintf(fptr,"%s%s\r\n",path,fileName);
       	fprintf(fptr,"%.4f, %.4f, %.4f, %d, %d,%d,%d\r\n",fmm,sensorWidth,tagSize, 0, 0,0,0);//padding for easier import
       }
     }

@@ -4,6 +4,28 @@ from mathutils import Euler
 from mathutils import Matrix
 bl_info = {"name": "Import AprilTools tracking data", "category": "Import-Export", "blender":(2,80,0)}
 
+
+
+def loadSequence(theCam, thePath, frameCount):
+    #cam = bpy.context.scene.camera
+    #filepath = r"L:\personal\tracker\realFootage4\00000.png"
+    seq = bpy.data.images.load(thePath)
+    seq.source = 'SEQUENCE'
+    theCam.data.show_background_images = True
+    bpy.context.scene.frame_end=frameCount
+    #theCam.data.frame_duration=frameCount
+    bg = theCam.data.background_images.new()
+    bg.image = seq
+    setTrackLen(theCam,frameCount)
+    
+    
+def setTrackLen(theCam, frameCount):
+    bg = theCam.data.background_images[0]
+    #seq.frame_end=frameCount
+    bg.image_user.frame_duration=frameCount
+    bpy.context.scene.frame_end=frameCount
+
+
 def read_some_data(context, filepath, type):
     print("Importing Apriltools data..")
     bpy.context.scene.unit_settings.system='METRIC'
@@ -12,7 +34,14 @@ def read_some_data(context, filepath, type):
     #f.close()
     #track=np.genfromtxt(filepath, delimiter=',')
     print(type)
-    track=np.genfromtxt(filepath, delimiter=',')
+    
+    f=open(filepath)
+    firstImage=f.readline()
+    firstImage=firstImage.rstrip()
+    print(firstImage)
+    f.close();
+    
+    track=np.genfromtxt(filepath, delimiter=',',skip_header=1)
         
         
     cam=bpy.data.objects.get("Camera")
@@ -32,7 +61,8 @@ def read_some_data(context, filepath, type):
     bpy.ops.object.camera_add(enter_editmode=False,location=(0,0,0),rotation=(0,0,0))
     bpy.context.active_object.name = 'Camera'
     cam=bpy.data.objects['Camera']
-        
+    
+    loadSequence(cam,firstImage,track[len(track)-1, 0])
 
   
 
@@ -85,8 +115,8 @@ def read_some_data(context, filepath, type):
             
         #obj.rotation_euler=Euler(tuple(the_rot),'XYZ')
         #obj.location=tuple(the_loc)
-        obj.keyframe_insert(data_path='rotation_euler',frame=cf)
-        obj.keyframe_insert(data_path='location',frame=cf)
+        obj.keyframe_insert(data_path='rotation_euler',frame=cf-1)
+        obj.keyframe_insert(data_path='location',frame=cf-1)
         
     cam=bpy.data.objects['Camera']
     marker=bpy.data.objects['marker']
