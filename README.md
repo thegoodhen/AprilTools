@@ -62,6 +62,17 @@ For Ubuntu:
 apt install cmake libopencv-dev
 ```
 
+For Arch Linux:
+```
+sudo pacman -Syu cmake opencv
+```
+
+Make sure that you clone reqursively:
+```
+git clone --recursive https://github.com/thegoodhen/AprilTools
+cd AprilTools
+``` 
+
 Now to compile, from the source directory run the following:
 ```
 mkdir build
