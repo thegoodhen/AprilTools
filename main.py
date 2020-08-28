@@ -21,6 +21,8 @@ def get_camera_matrix(wpx, hpx, wmm, fmm):
     retMat[0,2]=wpx/2
     retMat[1,2]=hpx/2
     retMat[2,2]=1
+    print("Kokon")
+    print(retMat)
     return retMat
 
 def get_random_transformation_matrix(rvec,tvec):
@@ -115,6 +117,8 @@ def get_reprojection_error(base_to_target_marker_matrix, marker_matrix_pairs, ta
         ids=frame_list[frame_number]['ids']
 
         for pair in marker_matrix_pairs:#for all the markers that have a known position wrt. base...
+            if ids is None:#no markers on the current frame
+                continue
             if pair['marker_id'] in ids and pair['marker_id'] != target_marker_id:#..and are present on the current frame
                 reference_marker_id=(pair['marker_id'])
                 base_to_ref_matrix=(pair['matrix'])
@@ -162,6 +166,8 @@ def update_marker_matrix_pairs(marker_matrix_pairs, valid_markers_list,frame_lis
             continue
 
         for i in range(len(frame_list)):
+            if frame_list[i]['ids'] is None:
+                continue
             if marker_id not in frame_list[i]['ids']:#the specified marker is not on the current frame
                 continue
 
@@ -197,8 +203,15 @@ def prepare_2d_3d_correspondances_for_pnp_solver(frame_list,frame_number,marker_
     ids=frame_data['ids']
     corners=frame_data['corners']
 
+    #get rid of all the markers that we are not interested in, but that were still detected
+    valid_marker_ids=list(item['marker_id'] for item in marker_matrix_pairs)
+    valid_indices=[i for i,elem in enumerate(ids)if elem in valid_marker_ids]
+
     points2D=[]
     points3D=[]
+    ids=ids[valid_indices]
+    corners=np.array(corners)
+    corners=corners[valid_indices]
     for i in range (len(ids)):
         #the points are stored in an odd way; sometimes, the shape is (2,4), other times (4,2,1), seemingly randomly...
         points2Dtemp=corners[i]
@@ -248,6 +261,8 @@ def write_line_to_file(the_file,the_line):
     the_file.write((','.join('%0.8f'%x for x in the_line))+'\n')
 
 def generate_tracking_line_for_frame(frame_data,frame_number,marker_matrix_pairs,marker_size,camera_matrix,distortion_coefficients):
+    if(frame_number==174):
+        print("kokodaaaak")
     points2D,points3D=prepare_2d_3d_correspondances_for_pnp_solver(frame_data,frame_number,marker_matrix_pairs,marker_size)
     points3D=np.array(np.transpose(points3D))
     retval, rvecCam,tvecCam=cv2.solvePnP(points3D,points2D,camera_matrix,distortion_coefficients)
@@ -258,10 +273,14 @@ def generate_tracking_line_for_frame(frame_data,frame_number,marker_matrix_pairs
     #cor=transform_corners_with_matrix(cor,tmat)
     #print(cor)
     returnVec=np.hstack((np.array(frame_number),matrix_to_xyz_euler(tmat),matrix_to_translation_vector(tmat)))
+    if(returnVec[6]<0):#object behind camera, as opposed to in front of the camera
+        returnVec[1:7]=-returnVec[1:7]
+        returnVec[3]=-(returnVec[3]+math.pi)
+
     returnVec[2]=-returnVec[2]#flip y rot axis
-    returnVec[3]=-returnVec[3]#flip y rot axis
+    returnVec[3]=-returnVec[3]#flip z rot axis
     returnVec[5]=-returnVec[5]#flip y trans axis
-    returnVec[6]=-returnVec[6]#flip y trans axis
+    returnVec[6]=-returnVec[6]#flip z trans axis
 
     #print(retval)
     #print(rvecCam)
@@ -269,9 +288,30 @@ def generate_tracking_line_for_frame(frame_data,frame_number,marker_matrix_pairs
     print(returnVec)
     return returnVec
 
+def testVideoConversion():
+    vidcap = cv2.VideoCapture("L:\\personal\\tracker\\newCode\\footage\\tracking_footage.mp4")
+    #vidcap = cv2.VideoCapture("L:\\personal\\tracker\\CameraParameterEstimatorCharuko\\workdir\\realCharuko\\arucoboard.mp4")
+    success,image = vidcap.read()
+    count = 0
+    success = True
+    while success:
+      success,image = vidcap.read()
+      cv2.imwrite("L:\\personal\\tracker\\newCode\\footage\\tracking_footage\\frame%04d.jpg"%count,image)
+      #cv2.imwrite("L:\\personal\\tracker\\CameraParameterEstimatorCharuko\\workdir\\realCharuko\\pngs\\frame%d.png"%count,image)
+      #cv2.imwrite("L:\\personal\\tracker\\newCode\\footage\\calib_footage\\frame%d.jpg" % count, image)     # save frame as JPEG file
+      if cv2.waitKey(10) == 27:                     # exit if Escape is hit
+          break
+      count += 1
+
 #print(get_camera_matrix(640,480,36,35))
 
 #cap = cv2.VideoCapture(0)
+
+
+#camera_matrix=get_camera_matrix(1920,1080,36,35)
+#kokodak()
+#testVideoConversion()
+#kokodak()
 
 fig = plt.figure()
 #fig = plt.figure(figsize=plt.figaspect(1)*1.5) #Adjusts the aspect ratio and enlarges the figure (text does not enlarge)
@@ -280,25 +320,30 @@ ax = fig.add_subplot(111, projection='3d')
 #ax.auto_scale_xyz([0,2], [0,2], [0,2])
 aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
 parameters =  aruco.DetectorParameters_create()
-parameters.cornerRefinementMethod=aruco.CORNER_REFINE_APRILTAG
-#parameters.cornerRefinementMethod=aruco.CORNER_REFINE_CONTOUR
+#parameters.cornerRefinementMethod=aruco.CORNER_REFINE_APRILTAG
+parameters.cornerRefinementMethod=aruco.CORNER_REFINE_CONTOUR
 #parameters.cornerRefinementMethod=aruco
-camera_matrix=get_camera_matrix(1920,1080,36,35)
+#camera_matrix=get_camera_matrix(1920,1080,36,35)
+camera_matrix=get_camera_matrix(1920,1080,36,27.2)
+camera_matrix=np.array([[1449.2,0.0,1007.2],[0.0,1449.2,542.28],[0.0,0.0,1.0]])
+#distCoeffs=np.array([[3.916,-112.5,0.0,0.0,460.7]])
+#distCoeffs=np.array([[3.916],[-112.5],[-0.00363],[-0.001854]])
 distCoeffs=np.zeros(shape=(1,4))
 
 frameData={}
 frameDataList=[]
 
-for i in range(30):
+for i in range(300):
     frameData=frameData.copy()
     #filename="L:\\personal\\tracker\\testAnimCube\\%04d.png"%(i+1)
     #filename="L:\\personal\\tracker\\testAnimDetermineAxes\\%04d.png"%(i+1)
-    filename="L:\\personal\\tracker\\testAnimCrazyMotion\\%04d.png"%(i+1)
+    #filename="L:\\personal\\tracker\\testAnimCrazyMotion3D\\%04d.png"%(i+1)
+    filename="L:\\personal\\tracker\\newCode\\footage\\tracking_footage\\frame%04d.jpg"%(i+1)
     #print(filename)
     frame = cv2.imread(filename)#cap.read()
     gray = frame#cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-    rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(corners,0.095,camera_matrix,distCoeffs)
+    rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(corners,0.1,camera_matrix,distCoeffs)
     #newCorners=get_corners_of_marker_in_base_marker_coordinate_system(rvecs,tvecs,ids,0,2,1)
     #print(newCorners)
     frameData['corners']=corners
@@ -306,11 +351,12 @@ for i in range(30):
     frameData['rvecs']=rvecs
     frameData['tvecs']=tvecs
     frameDataList.append(frameData)
+    print(i)
     #if not newCorners is None:
     #    ax.scatter(newCorners[0,:],newCorners[1,:],newCorners[2,:])
 
 base_matrix_pair={}#marker id vs. the transformation matrix from base to the marker; the base can be a base marker or world
-valid_markers_list=[0,1,2,3,4]
+valid_markers_list=[0,1,2,3]
 markerMatrixPairList=[]
 base_matrix_pair['marker_id']=0
 base_matrix_pair['matrix']=np.identity(4)
@@ -330,9 +376,10 @@ plot_markers(markerMatrixPairList, 0.1,ax)
 filename="L:\\personal\\tracker\\testNewTracking.txt"
 file=open(filename,'w')
 
-for i in range(30):
-    line=generate_tracking_line_for_frame(frameDataList,i,markerMatrixPairList,0.095,camera_matrix,distCoeffs)
+for i in range(300):
+    line=generate_tracking_line_for_frame(frameDataList,i,markerMatrixPairList,0.1,camera_matrix,distCoeffs)
     write_line_to_file(file,line)
+    print(i)
 file.close()
 
 plt.show()
