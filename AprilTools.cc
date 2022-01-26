@@ -82,7 +82,6 @@ extern "C"{
 
 #include "apriltag_pose.h"
 }
-using namespace cv;
 
 uint8_t compareFilenames(std::string, std::string);
 bool isFileAcceptable(char*);
@@ -543,7 +542,7 @@ int main(int argc, char *argv[])
     image_u8_t *im = NULL;
     //printf("loading");
 
-    Mat img = imread(path+(std::string)fileName, 0);//TODO: deallocate?
+    cv::Mat img = cv::imread(path+(std::string)fileName, 0);//TODO: deallocate?
     image_u8_t img_header = { .width = img.cols,
       .height = img.rows,
       .stride = img.cols,
