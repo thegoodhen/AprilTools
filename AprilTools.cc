@@ -82,7 +82,6 @@ extern "C"{
 
 #include "apriltag_pose.h"
 }
-using namespace std;
 using namespace cv;
 
 uint8_t compareFilenames(std::string, std::string);
@@ -509,7 +508,7 @@ int main(int argc, char *argv[])
   	fptr = fopen(((std::string)(path+(std::string)"track.txt")).c_str(),"w");
   }
 
-  std::vector<string> filesList=getSortedFilenames(path);
+  std::vector<std::string> filesList=getSortedFilenames(path);
   if(filesList.size()==0)
   {
     printf("No files found in the specified directory. The file names are expected to contain a number and end with .jpg, .jp2, .jpeg, .png or .bmp.\r\n");
