@@ -258,19 +258,12 @@ uint8_t compareFilenames(std::string str1, std::string str2)
   number=atoi(output.c_str());
   number2=atoi(output2.c_str());
 
-  if(number==number2)
-  {
-    return 0;
-  }
-  if(number>number2)
+  if(number>=number2)
   {
     return 0;
   }
 
-  if(number<number2)
-  {
-    return 1;
-  }
+  return 1;
 }
 
 int getFilenameNumber(std::string fileName)
