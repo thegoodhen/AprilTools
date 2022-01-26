@@ -568,8 +568,8 @@ int main(int argc, char *argv[])
       continue;
     }
 
-    apriltag_detection_t* det;
-    zarray_get(detections,0,&det);
+    //apriltag_detection_t* det;
+    //zarray_get(detections,0,&det);
 
 
     /*
@@ -586,8 +586,8 @@ int main(int argc, char *argv[])
       fillIntrinsics();
       if(!estimateF)
       {
-	fprintf(fptr,"%s%s\r\n",path,fileName);
-      	fprintf(fptr,"%.4f, %.4f, %.4f, %d, %d,%d,%d\r\n",fmm,sensorWidth,tagSize, 0, 0,0,0);//padding for easier import
+        fprintf(fptr,"%s%s\r\n",path,fileName);
+        fprintf(fptr,"%.4f, %.4f, %.4f, %d, %d,%d,%d\r\n",fmm,sensorWidth,tagSize, 0, 0,0,0);//padding for easier import
       }
     }
 
@@ -597,13 +597,6 @@ int main(int argc, char *argv[])
     float cy=img.rows/2.0;//240;
 
 
-    apriltag_detection_info_t info;
-    info.det = det;
-    info.tagsize = tagSize/1000.0;
-    info.fx = fx;
-    info.fy = fy;
-    info.cx = cx;
-    info.cy = cy;
     //printf("%.2f\r\n",info.tagsize);
     //printf("%.2f\r\n",info.fx);
 
@@ -611,10 +604,14 @@ int main(int argc, char *argv[])
 
     if(estimateF)
     {
+      apriltag_detection_t* det;
+      // base focal length off of first detection
+      // TODO: get better estimate by looking at all detections?
+      zarray_get(detections,0,&det);
       double pixelF=getPixelF(det, principal);
       if(pixelF>0)
       {
-	focalLengths.push_back(pixelF);
+        focalLengths.push_back(pixelF);
       }
       double med=calculateMedian(focalLengths);
       printf("Focal length estimates median: %.2f; last estimate: %.2f\r\n",med, pixelF);
@@ -622,24 +619,32 @@ int main(int argc, char *argv[])
     }
     else
     {
-      // Then call estimate_tag_pose.
-      apriltag_pose_t pose;
-      double err = estimate_tag_pose(&info, &pose);
-      matd_t* Mr =pose.R;
-      matd_t* Mt =pose.t;
-      //matd_print(Mr, " %.2f ");
-      //matd_print(Mt, " %.2f ");
+      for (int i = 0; i < zarray_size(detections); i++) {
+        apriltag_detection_t* det;
+        zarray_get(detections, i, &det);
 
+        apriltag_detection_info_t info;
+        info.det = det;
+        info.tagsize = tagSize/1000.0;
+        info.fx = fx;
+        info.fy = fy;
+        info.cx = cx;
+        info.cy = cy;
 
-      matd_t* euler=getEulers(Mr);
-      //matd_print(euler, " %.2f ");
+        // Then call estimate_tag_pose.
+        apriltag_pose_t pose;
+        double err = estimate_tag_pose(&info, &pose);
+        matd_t* Mr =pose.R;
+        matd_t* Mt =pose.t;
 
-      char line[1000];
-      sprintf(line,"%d, %.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n", frameNo, MATD_EL(euler,0,2),MATD_EL(euler,0,1),MATD_EL(euler,0,0),MATD_EL(Mt,0,0),MATD_EL(Mt,1,0),MATD_EL(Mt,2,0));
-      //printf("line: ");
-      //printf(line);
-      fprintf(fptr,"%s",line);
-      matd_destroy(euler);
+        matd_t* euler=getEulers(Mr);
+
+        char line[1000];
+        // save frame number, tag id, tag pose to file
+        sprintf(line,"%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n", frameNo, det->id, MATD_EL(euler,0,2),MATD_EL(euler,0,1),MATD_EL(euler,0,0),MATD_EL(Mt,0,0),MATD_EL(Mt,1,0),MATD_EL(Mt,2,0));
+        fprintf(fptr,"%s",line);
+        matd_destroy(euler);
+      }
     }
 
 
