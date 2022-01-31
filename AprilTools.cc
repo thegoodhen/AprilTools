@@ -82,8 +82,6 @@ extern "C"{
 
 #include "apriltag_pose.h"
 }
-using namespace std;
-using namespace cv;
 
 uint8_t compareFilenames(std::string, std::string);
 bool isFileAcceptable(char*);
@@ -258,19 +256,12 @@ uint8_t compareFilenames(std::string str1, std::string str2)
   number=atoi(output.c_str());
   number2=atoi(output2.c_str());
 
-  if(number==number2)
-  {
-    return 0;
-  }
-  if(number>number2)
+  if(number>=number2)
   {
     return 0;
   }
 
-  if(number<number2)
-  {
-    return 1;
-  }
+  return 1;
 }
 
 int getFilenameNumber(std::string fileName)
@@ -516,7 +507,7 @@ int main(int argc, char *argv[])
   	fptr = fopen(((std::string)(path+(std::string)"track.txt")).c_str(),"w");
   }
 
-  std::vector<string> filesList=getSortedFilenames(path);
+  std::vector<std::string> filesList=getSortedFilenames(path);
   if(filesList.size()==0)
   {
     printf("No files found in the specified directory. The file names are expected to contain a number and end with .jpg, .jp2, .jpeg, .png or .bmp.\r\n");
@@ -551,7 +542,7 @@ int main(int argc, char *argv[])
     image_u8_t *im = NULL;
     //printf("loading");
 
-    Mat img = imread(path+(std::string)fileName, 0);//TODO: deallocate?
+    cv::Mat img = cv::imread(path+(std::string)fileName, 0);//TODO: deallocate?
     image_u8_t img_header = { .width = img.cols,
       .height = img.rows,
       .stride = img.cols,
@@ -577,8 +568,8 @@ int main(int argc, char *argv[])
       continue;
     }
 
-    apriltag_detection_t* det;
-    zarray_get(detections,0,&det);
+    //apriltag_detection_t* det;
+    //zarray_get(detections,0,&det);
 
 
     /*
@@ -595,8 +586,8 @@ int main(int argc, char *argv[])
       fillIntrinsics();
       if(!estimateF)
       {
-	fprintf(fptr,"%s%s\r\n",path,fileName);
-      	fprintf(fptr,"%.4f, %.4f, %.4f, %d, %d,%d,%d\r\n",fmm,sensorWidth,tagSize, 0, 0,0,0);//padding for easier import
+        fprintf(fptr,"%s%s\r\n",path,fileName);
+        fprintf(fptr,"%.4f, %.4f, %.4f, %d, %d,%d,%d,%d,%d\r\n",fmm,sensorWidth,tagSize, 0, 0,0,0,0,0);//padding for easier import
       }
     }
 
@@ -606,13 +597,6 @@ int main(int argc, char *argv[])
     float cy=img.rows/2.0;//240;
 
 
-    apriltag_detection_info_t info;
-    info.det = det;
-    info.tagsize = tagSize/1000.0;
-    info.fx = fx;
-    info.fy = fy;
-    info.cx = cx;
-    info.cy = cy;
     //printf("%.2f\r\n",info.tagsize);
     //printf("%.2f\r\n",info.fx);
 
@@ -620,10 +604,14 @@ int main(int argc, char *argv[])
 
     if(estimateF)
     {
+      apriltag_detection_t* det;
+      // base focal length off of first detection
+      // TODO: get better estimate by looking at all detections?
+      zarray_get(detections,0,&det);
       double pixelF=getPixelF(det, principal);
       if(pixelF>0)
       {
-	focalLengths.push_back(pixelF);
+        focalLengths.push_back(pixelF);
       }
       double med=calculateMedian(focalLengths);
       printf("Focal length estimates median: %.2f; last estimate: %.2f\r\n",med, pixelF);
@@ -631,24 +619,32 @@ int main(int argc, char *argv[])
     }
     else
     {
-      // Then call estimate_tag_pose.
-      apriltag_pose_t pose;
-      double err = estimate_tag_pose(&info, &pose);
-      matd_t* Mr =pose.R;
-      matd_t* Mt =pose.t;
-      //matd_print(Mr, " %.2f ");
-      //matd_print(Mt, " %.2f ");
+      for (int i = 0; i < zarray_size(detections); i++) {
+        apriltag_detection_t* det;
+        zarray_get(detections, i, &det);
 
+        apriltag_detection_info_t info;
+        info.det = det;
+        info.tagsize = tagSize/1000.0;
+        info.fx = fx;
+        info.fy = fy;
+        info.cx = cx;
+        info.cy = cy;
 
-      matd_t* euler=getEulers(Mr);
-      //matd_print(euler, " %.2f ");
+        // Then call estimate_tag_pose.
+        apriltag_pose_t pose;
+        double err = estimate_tag_pose(&info, &pose);
+        matd_t* Mr =pose.R;
+        matd_t* Mt =pose.t;
 
-      char line[1000];
-      sprintf(line,"%d, %.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n", frameNo, MATD_EL(euler,0,2),MATD_EL(euler,0,1),MATD_EL(euler,0,0),MATD_EL(Mt,0,0),MATD_EL(Mt,1,0),MATD_EL(Mt,2,0));
-      //printf("line: ");
-      //printf(line);
-      fprintf(fptr,"%s",line);
-      matd_destroy(euler);
+        matd_t* euler=getEulers(Mr);
+
+        char line[1000];
+        // save frame number, tag id, decision margin, tag pose to file
+        sprintf(line,"%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n", frameNo, det->id, det->decision_margin, MATD_EL(euler,0,2),MATD_EL(euler,0,1),MATD_EL(euler,0,0),MATD_EL(Mt,0,0),MATD_EL(Mt,1,0),MATD_EL(Mt,2,0));
+        fprintf(fptr,"%s",line);
+        matd_destroy(euler);
+      }
     }
 
 
