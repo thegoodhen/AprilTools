@@ -42,7 +42,7 @@ apriltools.exe --path "C:/myFootage/"  --estimate-focal-length
 This will NOT track the footage, but instead it will calculate the focal length in pixels, allowing you to use this info to track your footage.
 
 Having installed the plugin into Blender, you can go to File->Import->Import AprilTools tracking data (inside Blender).
-You then need to choose whether you want the tracking data to be interpreted as a tag being static and the camera orbiting around it (default), or whether you want the camera to be static and the tag to move.
+You may then choose a static tag, which is assumed to be stationary at the origin so the camera orbits around it. You can enter the tag id printed on the tag, or set the static tag to -1 to not use it and instead keep the camera stationary. All tags other than the chosen static tag will move relative to the camera.
 
 The tracking data will be located in the folder your footage is in. 
 Optionally, you can now right-click the camera and on the right Blender panel go to Context:Object data->Background Images; there you click on Add Image, then on "Movie Clip" , "Open clip" and you select your footage (hit "a" to select all).
