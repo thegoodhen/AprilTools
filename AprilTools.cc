@@ -587,7 +587,7 @@ int main(int argc, char *argv[])
       if(!estimateF)
       {
         fprintf(fptr,"%s%s\r\n",path,fileName);
-        fprintf(fptr,"%.4f, %.4f, %.4f, %d, %d,%d,%d\r\n",fmm,sensorWidth,tagSize, 0, 0,0,0);//padding for easier import
+        fprintf(fptr,"%.4f, %.4f, %.4f, %d, %d,%d,%d,%d,%d\r\n",fmm,sensorWidth,tagSize, 0, 0,0,0,0,0);//padding for easier import
       }
     }
 
@@ -640,8 +640,8 @@ int main(int argc, char *argv[])
         matd_t* euler=getEulers(Mr);
 
         char line[1000];
-        // save frame number, tag id, tag pose to file
-        sprintf(line,"%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n", frameNo, det->id, MATD_EL(euler,0,2),MATD_EL(euler,0,1),MATD_EL(euler,0,0),MATD_EL(Mt,0,0),MATD_EL(Mt,1,0),MATD_EL(Mt,2,0));
+        // save frame number, tag id, decision margin, tag pose to file
+        sprintf(line,"%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n", frameNo, det->id, det->decision_margin, MATD_EL(euler,0,2),MATD_EL(euler,0,1),MATD_EL(euler,0,0),MATD_EL(Mt,0,0),MATD_EL(Mt,1,0),MATD_EL(Mt,2,0));
         fprintf(fptr,"%s",line);
         matd_destroy(euler);
       }
