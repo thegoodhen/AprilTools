@@ -7,13 +7,10 @@ bl_info = {"name": "Import AprilTools tracking data", "category": "Import-Export
 
 
 def loadSequence(theCam, thePath, frameCount):
-    #cam = bpy.context.scene.camera
-    #filepath = r"L:\personal\tracker\realFootage4\00000.png"
     seq = bpy.data.images.load(thePath)
     seq.source = 'SEQUENCE'
     theCam.data.show_background_images = True
     bpy.context.scene.frame_end=frameCount
-    #theCam.data.frame_duration=frameCount
     bg = theCam.data.background_images.new()
     bg.image = seq
     setTrackLen(theCam,frameCount)
@@ -26,15 +23,10 @@ def setTrackLen(theCam, frameCount):
     bpy.context.scene.frame_end=frameCount
 
 
-def read_some_data(context, filepath, type):
+def read_some_data(context, filepath, fixed_tag):
     print("Importing Apriltools data..")
     bpy.context.scene.unit_settings.system='METRIC'
-    #f = open(filepath, 'r', encoding='utf-8')
-    #data = f.read()
-    #f.close()
-    #track=np.genfromtxt(filepath, delimiter=',')
-    print(type)
-    
+   
     f=open(filepath)
     firstImage=f.readline()
     firstImage=firstImage.rstrip()
@@ -45,26 +37,15 @@ def read_some_data(context, filepath, type):
         
         
     cam=bpy.data.objects.get("Camera")
-    marker=bpy.data.objects.get("marker")
 
-    if marker is not None:#marker already exists
-        bpy.ops.object.delete({"selected_objects":[marker]})
-        
     if cam is not None:#camera already exists
         bpy.ops.object.delete({"selected_objects":[cam]})
 
-
-    bpy.ops.mesh.primitive_plane_add(size=1,enter_editmode=False,location=(0,0,0))
-    bpy.context.active_object.name = 'marker'
-    marker=bpy.data.objects['marker']
-
-    bpy.ops.object.camera_add(enter_editmode=False,location=(0,0,0),rotation=(0,0,0))
-    bpy.context.active_object.name = 'Camera'
-    cam=bpy.data.objects['Camera']
-    
-    loadSequence(cam,firstImage,track[len(track)-1, 0])
-
-  
+    # delete objects starting with "apriltag" to get rid of old tags
+    # hopefully this isn't too slow with a lot of objects...
+    for o in bpy.data.objects:
+        if o.name[0:8] == "apriltag":
+            bpy.ops.object.delete({"selected_objects": [o]})
 
     cf=0
     firstLine=True
@@ -72,57 +53,79 @@ def read_some_data(context, filepath, type):
     sensor_width=-1
     tagSize=-1
 
-    for line in track:
-        print(line)
-        if firstLine:
-            fmm=line[0]
-            sensor_width=line[1]
-            tagSize=line[2]
-            firstLine=False
-            continue
-                
-        
-        cf=line[0]
-        the_rot_wrong=line[1:4]
-        the_rot=np.copy(the_rot_wrong)
-        #print("slepice")
-        #print(the_rot)
-        the_rot[0]=the_rot_wrong[2]
-        the_rot[2]=the_rot_wrong[0]
-        
-        print(the_rot)
-        #the_rot[0]=-the_rot[0]
-        the_rot[1]=-the_rot[1]
-        the_rot[2]=-the_rot[2]
-        
-        the_loc=line[4:7]
-        the_loc[1]=-the_loc[1]
-        the_loc[2]=-the_loc[2]
-        
-        Rx=Matrix.Rotation(the_rot[0],4,'X')
-        Ry=Matrix.Rotation(the_rot[1],4,'Y')
-        Rz=Matrix.Rotation(the_rot[2],4,'Z')
-        Txyz=Matrix.Translation(tuple(the_loc))
-        
-        Mt=(Txyz@Rz@Ry@Rx)
-        if (type == 'MOVING_CAM'):
-            obj=cam
-            Mt.invert()
-        else: 
-            obj=marker
-            
-        obj.matrix_world=Mt
-            
-        #obj.rotation_euler=Euler(tuple(the_rot),'XYZ')
-        #obj.location=tuple(the_loc)
-        obj.keyframe_insert(data_path='rotation_euler',frame=cf-1)
-        obj.keyframe_insert(data_path='location',frame=cf-1)
-        
+    header = track[0]
+    fmm = header[0]
+    sensor_width = header[1]
+    tagSize = header[2]
+
+    bpy.ops.object.camera_add(enter_editmode=False,location=(0,0,0),rotation=(0,0,0))
+    bpy.context.active_object.name = 'Camera'
     cam=bpy.data.objects['Camera']
-    marker=bpy.data.objects['marker']
     cam.data.lens=fmm
     cam.data.sensor_width=sensor_width
-    marker.dimensions=[tagSize/1000,tagSize/1000,0.01]
+
+    loadSequence(cam,firstImage,int(track[len(track)-1][0]))
+    # get rid of header line
+    track = track[1:]
+
+    # store the transforms of each tag in the frame so you can adjust for the camera location
+    tags_in_frame = {}
+    # keep track of the frame number from last loop
+    last_frame = int(track[0][0])
+
+    for line in track:
+        frame = line[0]
+        id = int(line[1]) # the tag id
+
+        # it's the next frame, so actually set the positions
+        # we need to wait for the next frame before setting the positions since the position of the tags relies on the camera
+        if frame != last_frame:
+            for k in tags_in_frame.keys():
+                # the object to move. I start it as the camera since it's possible the marker doesn't exist yet
+                obj = cam
+                if k == fixed_tag:
+                    # If this is the fixed tag, invert the transformation and move the camera instead of the tag
+                    tags_in_frame[k].invert()
+                else:
+                    # create a tag plane if it doesn't exist yet
+                    if 'apriltag_' + str(k) not in bpy.data.objects:
+                        bpy.ops.mesh.primitive_plane_add(size=tagSize/1000,enter_editmode=False,location=(0,0,0))
+                        bpy.context.active_object.name = 'apriltag_' + str(k)
+                        marker = bpy.data.objects['apriltag_' + str(k)]
+                    # set the object to the current tag
+                    obj = bpy.data.objects['apriltag_' + str(k)]
+
+                    # if there is a fixed tag, the camera must be moving
+                    # apply the camera transform to the tags so they are in the correct position relative to the camera
+                    if fixed_tag != -1:
+                        tags_in_frame[k] = tags_in_frame[fixed_tag] @ tags_in_frame[k]
+
+                obj.matrix_world = tags_in_frame[k]
+
+                obj.keyframe_insert(data_path='rotation_euler',frame=frame-1)
+                obj.keyframe_insert(data_path='location',frame=frame-1)
+
+            last_frame = frame
+            tag_in_frame = {}
+
+        raw_rotation = line[3:6]
+        rotation = np.copy(raw_rotation)
+
+        rotation[0] = raw_rotation[2]
+        rotation[2] = raw_rotation[0]
+        rotation[1] *= -1
+        rotation[2] *= -1
+
+        location = line[6:9]
+        location[1] *= -1
+        location[2] *= -1
+
+        Rx = Matrix.Rotation(rotation[0], 4, 'X')
+        Ry = Matrix.Rotation(rotation[1], 4, 'Y')
+        Rz = Matrix.Rotation(rotation[2], 4, 'Z')
+        translation = Matrix.Translation(tuple(location)) # the location transformation
+        tags_in_frame[id] = (translation@Rz@Ry@Rx) # add the rotation to make the full transform
+
 
     return {'FINISHED'}
 
@@ -130,7 +133,7 @@ def read_some_data(context, filepath, type):
 # ImportHelper is a helper class, defines filename and
 # invoke() function which calls the file selector.
 from bpy_extras.io_utils import ImportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty
 from bpy.types import Operator
 
 
@@ -156,18 +159,20 @@ class ImportMovement(Operator, ImportHelper):
     #    default=True,
     #)
 
-    type: EnumProperty(
-        name="Movement target",
-        description="Whether the camera should be static and the tag moving, or vice versa.",
-        items=(
-            ('MOVING_CAM', "Moving camera", "Tag is static, camera is moving around it."),
-            ('MOVING_TAG', "Moving tag", "Camera is static, tag is moving."),
-        ),
-        default='MOVING_CAM',
+    # It should be possible to have multiple fixed tags, but there would need to be a way to combine them into one camera position
+    # In order to do this you need to know the difference between the positions of the two (or more) tags
+    # This could be determined from a frame of the video (the first one where both tags are visible?)
+    # Or it could be measured and inputted manually by the user
+    # For now, I'm going to leave it with a single fixed tag since that is a likely use case
+    fixed_tag: IntProperty(
+        name="Fixed tag",
+        description="""The id of a tag that is in a fixed position, used to find the camera position
+Set to -1 to assume the camera is fixed""",
+        default=-1,
     )
 
     def execute(self, context):
-        return read_some_data(context, self.filepath, self.type)
+        return read_some_data(context, self.filepath, self.fixed_tag)
 
 
 # Only needed if you want to add into a dynamic menu
