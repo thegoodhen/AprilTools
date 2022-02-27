@@ -401,6 +401,7 @@ int main(int argc, char *argv[])
   getopt_add_double(getopt, 'F', "focal-length-pixels", "-1", "Focal length in pixels");
   getopt_add_double(getopt, 'w', "sensor-width", "-1", "Camera sensor width in mm");
   getopt_add_double(getopt, 's', "tag-size", "-1", "Tag size (black border, side of the square) in mm");
+  getopt_add_int(getopt, 't', "tag-id", "-1", "Tag-ID to use for tracking, if ambiguous");
   getopt_add_bool(getopt, 'e', "estimate-focal-length", 0, "Do not track the marker; instead, estimate the camera focal length in pixels from the provided footage.");
   getopt_add_bool(getopt, 'q', "quick", 0, "Speed up the process at the expense of reduced accuracy.");
 
@@ -458,6 +459,7 @@ int main(int argc, char *argv[])
   fpx=getopt_get_double(getopt,"focal-length-pixels");
   sensorWidth=getopt_get_double(getopt,"sensor-width");
   quick = getopt_get_bool(getopt, "quick");
+  int tagId = getopt_get_int(getopt, "tag-id");
 
   bool estimateF = getopt_get_bool(getopt, "estimate-focal-length");
   if(!estimateF)
@@ -535,10 +537,11 @@ int main(int argc, char *argv[])
   int blurryPicsCount=0;
   int badPicsCount=0;
   for (int i=0;i<filesList.size();i++) {
-    printf("Processed %d/%d files, out of which %d blurry (?) and %d were unusable (no tag found).\r\n",i+1,filesList.size(),blurryPicsCount,badPicsCount);
-
     const char* fileName=filesList[i].c_str();
     int frameNo=getFilenameNumber(std::string(fileName));
+
+    printf("Processed %s as Frame %d. Files %d/%d (%d blurry (?) and %d unusable (no tag found)).\r\n",fileName, frameNo, i+1, filesList.size(),blurryPicsCount,badPicsCount);
+
     int hamm_hist[hamm_hist_max];
     memset(hamm_hist, 0, sizeof(hamm_hist));
 
@@ -577,8 +580,33 @@ int main(int argc, char *argv[])
       continue;
     }
 
+    int detectionIdx = 0;
     apriltag_detection_t* det;
-    zarray_get(detections,0,&det);
+    zarray_get(detections,detectionIdx,&det);
+
+
+    if(zarray_size(detections)>1)
+    {
+      if (tagId == -1) {
+        printf("Multiple tags detected on frame %s. Set option --tag-id to define which one to use.\r\n", fileName);
+        printf("Found tag: %d\r\n", det->id);
+        while (zarray_size(detections)-1 > detectionIdx)
+        {
+          detectionIdx++;
+          zarray_get(detections,detectionIdx,&det);
+          printf("Found tag: %d\r\n", det->id);
+        } 
+      } else {
+        while (det->id != tagId && zarray_size(detections)-1 > detectionIdx) {
+          detectionIdx++;
+          zarray_get(detections,detectionIdx,&det);
+        }
+        if (det->id != tagId) {
+          printf("Fix Tag-ID %d not found in frame %s\r\n", tagId, fileName);
+          continue;
+        }
+      }
+    }
 
 
     /*
