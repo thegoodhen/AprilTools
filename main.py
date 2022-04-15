@@ -73,10 +73,10 @@ def get_transformation_matrix_from_base_to_marker(rvecs, tvecs, ids, marker_matr
     base_to_ref_matrix=None#the matrix, which transforms the coordinate system from base into the coordinate system of the reference marker
 
     #find some marker that has a known location wrt. base and is present in the "ids" list; that is, a marker with known position, which is on the frame together with the target_marker_id marker
-    for pair in marker_matrix_pairs:
-        if pair['marker_id'] in ids and pair['marker_id'] != target_marker_id:
-            reference_marker_id=(pair['marker_id'])
-            base_to_ref_matrix=(pair['matrix'])
+    for marker in marker_matrix_pairs:
+        if marker in ids and marker != target_marker_id:
+            reference_marker_id=marker
+            base_to_ref_matrix=(marker_matrix_pairs[marker])
             break;
 
     target_marker_index=get_first_index_of_nparray(ids, target_marker_id)#array index in the input arrays of the target marker
@@ -119,12 +119,12 @@ def get_reprojection_error(base_to_target_marker_matrix, marker_matrix_pairs, ta
         corners=frame_list[frame_number]['corners']
         ids=frame_list[frame_number]['ids']
 
-        for pair in marker_matrix_pairs:#for all the markers that have a known position wrt. base...
+        for marker in marker_matrix_pairs:#for all the markers that have a known position wrt. base...
             if ids is None:#no markers on the current frame
                 continue
-            if pair['marker_id'] in ids and pair['marker_id'] != target_marker_id:#..and are present on the current frame
-                reference_marker_id=(pair['marker_id'])
-                base_to_ref_matrix=(pair['matrix'])
+            if marker in ids and marker != target_marker_id:#..and are present on the current frame
+                reference_marker_id=marker
+                base_to_ref_matrix=marker_matrix_pairs[marker]
 
                 ref_marker_index =get_first_index_of_nparray(ids, reference_marker_id)
                 target_marker_index=get_first_index_of_nparray(ids, target_marker_id)
@@ -160,13 +160,7 @@ def update_marker_matrix_pairs(marker_matrix_pairs, valid_markers_list,frame_lis
         t = time.time()
         processedFrames=0
 
-        marker_position_already_known=False
-        for pair in marker_matrix_pairs:#if the given marker id is already in the list of all the markers with known positions
-            marker_in_pairs_id=pair['marker_id']
-            if marker_id == marker_in_pairs_id:
-                marker_position_already_known=True
-                break;
-        if marker_position_already_known:
+        if marker_id in marker_matrix_pairs:
             continue
 
         for i in range(len(frame_list)):
@@ -189,10 +183,7 @@ def update_marker_matrix_pairs(marker_matrix_pairs, valid_markers_list,frame_lis
         #print(processedFrames)
         #print(bestErr)
         #print(bestMat)
-        newPair={}
-        newPair['marker_id']=marker_id
-        newPair['matrix']=bestMat
-        marker_matrix_pairs.append(newPair)
+        marker_matrix_pairs[marker_id]=bestMat
     print(time.time()-t)
 
 def plot_markers(marker_matrix_pairs, marker_size,ax):
@@ -216,11 +207,11 @@ def markers_to_3d_points(marker_matrix_pairs, marker_size):
 
 def prepare_2d_3d_correspondances_for_pnp_solver(frame_list,frame_number,marker_matrix_pairs,marker_size):
     frame_data=frame_list[frame_number]
-    ids=frame_data['ids']
+    ids=frame_data['ids'].ravel()
     corners=frame_data['corners']
 
     #get rid of all the markers that we are not interested in, but that were still detected
-    valid_marker_ids=list(item['marker_id'] for item in marker_matrix_pairs)
+    valid_marker_ids=marker_matrix_pairs.keys()
     valid_indices=[i for i,elem in enumerate(ids)if elem in valid_marker_ids]
     marker_ids_to_point_ids_dict={}#a lookup dictionary to convert the marker indices to point indices
     for i in range(len(valid_indices)):
@@ -247,13 +238,13 @@ def prepare_2d_3d_correspondances_for_pnp_solver(frame_list,frame_number,marker_
             points2D=np.vstack((points2D,points2Dtemp))
 
         for j in range(4):
-            temp=ids[i][0]
+            temp=ids[i]
             pointIDs.append(marker_ids_to_point_ids_dict[temp]+j)
 
-        for pair in marker_matrix_pairs:#todo: maybe exit the loop once we find it?
-            if pair['marker_id'] == ids[i]:
-                reference_marker_id=(pair['marker_id'])
-                base_to_target_matrix=(pair['matrix'])
+        for marker in marker_matrix_pairs:#todo: maybe exit the loop once we find it?
+            if  marker == ids[i]:
+                reference_marker_id=(marker)
+                base_to_target_matrix=(marker_matrix_pairs[marker])
                 points3Dtemp=get_corner_base_coordinates(marker_size)
                 points3Dtemp=transform_corners_with_matrix(points3Dtemp,base_to_target_matrix)
                 points3Dtemp=np.multiply(points3Dtemp,[[1,1,1,1],[-1,-1,-1,-1],[1,1,1,1]])#todo: check if this is correct
@@ -469,19 +460,21 @@ for i in range(framesCount):
     #if not newCorners is None:
     #    ax.scatter(newCorners[0,:],newCorners[1,:],newCorners[2,:])
 
-base_matrix_pair={}#marker id vs. the transformation matrix from base to the marker; the base can be a base marker or world
+markerMatrixPairs={}
+markerMatrixPairs[0]=np.identity(4);#TODO:make this user-adjustable
+#base_matrix_pair={}#marker id vs. the transformation matrix from base to the marker; the base can be a base marker or world
 valid_markers_list=[0,1,2,3]
-markerMatrixPairList=[]
-base_matrix_pair['marker_id']=0
-base_matrix_pair['matrix']=np.identity(4)
-markerMatrixPairList.append(base_matrix_pair)
+#markerMatrixPairList=[]
+#base_matrix_pair['marker_id']=0
+#base_matrix_pair['matrix']=np.identity(4)
+#markerMatrixPairList.append(base_matrix_pair)
 
-update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
-update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
-update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
-update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
-update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
-update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
+update_marker_matrix_pairs(markerMatrixPairs, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
+update_marker_matrix_pairs(markerMatrixPairs, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
+update_marker_matrix_pairs(markerMatrixPairs, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
+update_marker_matrix_pairs(markerMatrixPairs, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
+update_marker_matrix_pairs(markerMatrixPairs, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
+update_marker_matrix_pairs(markerMatrixPairs, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
 
 #markerPoints=np.array(markers_to_3d_points(markerMatrixPairList,0.1))
 #ax.scatter(markerPoints[:,0],markerPoints[:,1],markerPoints[:,2])
@@ -506,7 +499,7 @@ filename = "D:\\personal\\AprilTools\\AprilTools\\testNewTracking.txt"
 #kokodak=get_random_transformation_matrix(np.array([0,0,0]),np.array([0.2,0.2,0.2]))
 #markerMatrixPairList[0]['matrix']= markerMatrixPairList[0]['matrix'].dot(get_random_transformation_matrix(np.array([[0,0,0]]),np.array([[0.2,0.2,0.2]])))
 #camera_matrix=np.array([[1000.2,0.0,107.2],[0.0,1000.2,1542.28],[0.0,0.0,1.0]])
-[point_indices,viewport_indices,points2D,points3D,camVector]=prepare_data_for_bundle_adjustment2(frameDataList,markerMatrixPairList,0.1,camera_matrix,distCoeffs)
+[point_indices,viewport_indices,points2D,points3D,camVector]=prepare_data_for_bundle_adjustment2(frameDataList,markerMatrixPairs,0.1,camera_matrix,distCoeffs)
 mainFunc(camVector,points3D,viewport_indices,point_indices,points2D)
 #kokodak=sba.core.SBA(viewport_indices,point_indices)
 #[delta_a,delta_b]=kokodak.compute(np.array(x_true),np.array(x_pred),np.array(A),np.array(B))
