@@ -1,15 +1,18 @@
 import numpy as np
-import cv2
+import cv2#pip install opencv-contrib-python
 import time
 import math
 
-import cv2.aruco as aruco
+import cv2.aruco as aruco#no need to handle separately
 
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+from mpl_toolkits.mplot3d import Axes3D  #pip install matplotlib # noqa: F401 unused import
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import sparseba as sba
+from bundleAdjustmentHelpers import *
+import random
 
 
 
@@ -22,7 +25,7 @@ def get_camera_matrix(wpx, hpx, wmm, fmm):
     retMat[1,2]=hpx/2
     retMat[2,2]=1
     print("Kokon")
-    print(retMat)
+    #print(retMat)
     return retMat
 
 def get_random_transformation_matrix(rvec,tvec):
@@ -134,10 +137,11 @@ def get_reprojection_error(base_to_target_marker_matrix, marker_matrix_pairs, ta
                 corners3D=get_corner_base_coordinates(marker_size)
                 corners3D=transform_corners_with_matrix(corners3D,camera_to_target_marker_matrix)
                 corners2DNew,jac=cv2.projectPoints(corners3D,(0,0,0),(0,0,0),camera_matrix,dist_coeffs)
+                #print(corners[target_marker_index])
                 corners[target_marker_index]=np.reshape(corners[target_marker_index],(2,-1))
                 corners2DNew=np.reshape(corners2DNew,(2,-1))
                 currentErr=currentErr+(np.sum(np.square(corners[target_marker_index]-corners2DNew)))
-                if(currentErr>max_error):
+                if(currentErr>max_error):#pruning in case the error is already too large; we don't need to know just how large it is!
                     return currentErr
     return currentErr
 
@@ -180,11 +184,11 @@ def update_marker_matrix_pairs(marker_matrix_pairs, valid_markers_list,frame_lis
                     if currentErr<bestErr:
                         bestErr=currentErr
                         bestMat=guessMat
-                    guessMat=transMat.dot(get_random_transformation_matrix(np.array([[0.1,0.1,0.1]]),np.array([[0.1,0.1,0.1]])))
+                    #guessMat=transMat.dot(get_random_transformation_matrix(np.array([[0.1,0.1,0.1]]),np.array([[0.1,0.1,0.1]])))
 
-        print(processedFrames)
-        print(bestErr)
-        print(bestMat)
+        #print(processedFrames)
+        #print(bestErr)
+        #print(bestMat)
         newPair={}
         newPair['marker_id']=marker_id
         newPair['matrix']=bestMat
@@ -198,6 +202,18 @@ def plot_markers(marker_matrix_pairs, marker_size,ax):
         newCorners=transform_corners_with_matrix(corners,marker_matrix)
         ax.scatter(newCorners[0,:],newCorners[1,:],newCorners[2,:])
 
+def markers_to_3d_points(marker_matrix_pairs, marker_size):
+    points=[]
+    newList=sorted(marker_matrix_pairs,key= lambda d:d['marker_id'])
+    for pair in newList:
+        marker_matrix=pair['matrix']
+        corners=get_corner_base_coordinates(marker_size)
+        newCorners=transform_corners_with_matrix(corners,marker_matrix)
+        newCorners=newCorners.transpose()
+        points.extend(newCorners.tolist())
+    return points
+
+
 def prepare_2d_3d_correspondances_for_pnp_solver(frame_list,frame_number,marker_matrix_pairs,marker_size):
     frame_data=frame_list[frame_number]
     ids=frame_data['ids']
@@ -206,12 +222,19 @@ def prepare_2d_3d_correspondances_for_pnp_solver(frame_list,frame_number,marker_
     #get rid of all the markers that we are not interested in, but that were still detected
     valid_marker_ids=list(item['marker_id'] for item in marker_matrix_pairs)
     valid_indices=[i for i,elem in enumerate(ids)if elem in valid_marker_ids]
+    marker_ids_to_point_ids_dict={}#a lookup dictionary to convert the marker indices to point indices
+    for i in range(len(valid_indices)):
+        marker_ids_to_point_ids_dict[valid_indices[i]]=i*4
 
     points2D=[]
     points3D=[]
+    pointIDs=[]
     ids=ids[valid_indices]
     corners=np.array(corners)
     corners=corners[valid_indices]
+    sorted_indices=np.argsort(ids.ravel())
+    ids=ids[sorted_indices]
+    corners=corners[sorted_indices]
     for i in range (len(ids)):
         #the points are stored in an odd way; sometimes, the shape is (2,4), other times (4,2,1), seemingly randomly...
         points2Dtemp=corners[i]
@@ -223,7 +246,11 @@ def prepare_2d_3d_correspondances_for_pnp_solver(frame_list,frame_number,marker_
         else:
             points2D=np.vstack((points2D,points2Dtemp))
 
-        for pair in marker_matrix_pairs:
+        for j in range(4):
+            temp=ids[i][0]
+            pointIDs.append(marker_ids_to_point_ids_dict[temp]+j)
+
+        for pair in marker_matrix_pairs:#todo: maybe exit the loop once we find it?
             if pair['marker_id'] == ids[i]:
                 reference_marker_id=(pair['marker_id'])
                 base_to_target_matrix=(pair['matrix'])
@@ -234,7 +261,7 @@ def prepare_2d_3d_correspondances_for_pnp_solver(frame_list,frame_number,marker_
                     points3D=points3Dtemp
                 else:
                     points3D=np.hstack((points3D,points3Dtemp))
-    return (points2D, points3D)
+    return (pointIDs, points2D, points3D)
 
 
 def matrix_to_xyz_euler(rotation_matrix):
@@ -267,8 +294,9 @@ def generate_tracking_line_for_frame(frame_data,frame_number,marker_matrix_pairs
     points3D=np.array(np.transpose(points3D))
     retval, rvecCam,tvecCam=cv2.solvePnP(points3D,points2D,camera_matrix,distortion_coefficients)
     tmat=vectors_to_matrix(np.transpose(rvecCam),np.transpose(tvecCam))
+    prepareBundleAdjustmentParamsForSingleFrame(points3D,points2D,rvecCam,tvecCam,camera_matrix,distortion_coefficients)
 
-   # cor=get_corner_base_coordinates(0.095)
+    # cor=get_corner_base_coordinates(0.095)
   #  cor=np.multiply(cor,[[1,1,1,1],[-1,-1,-1,-1],[1,1,1,1]])
     #cor=transform_corners_with_matrix(cor,tmat)
     #print(cor)
@@ -285,8 +313,76 @@ def generate_tracking_line_for_frame(frame_data,frame_number,marker_matrix_pairs
     #print(retval)
     #print(rvecCam)
     #print(tvecCam)
-    print(returnVec)
+    #print(returnVec)
     return returnVec
+
+def prepare_data_for_bundle_adjustment(frame_data, marker_matrix_pairs, marker_size, camera_matrix, distortion_coefficients):
+    retPoints2D=[]
+    retPoints2DProjected=[]
+    retAList=[]
+    retBList=[]
+    pointIDs=[]
+    viewportIDs=[]
+
+    global framesCount
+    for i in range(framesCount):
+        pointIDsFrame, points2D,points3D=prepare_2d_3d_correspondances_for_pnp_solver(frame_data,i,marker_matrix_pairs,marker_size)
+        points3D=np.array(np.transpose(points3D))
+        retval, rvecCam,tvecCam=cv2.solvePnP(points3D,points2D,camera_matrix,distortion_coefficients)
+        #rvecCam[2]=rvecCam[2]+0.1
+        [points2DActualFrame, points2DProjectedFrame,Aframe,Bframe]=prepareBundleAdjustmentParamsForSingleFrame(points3D,points2D,rvecCam,tvecCam,camera_matrix,distortion_coefficients)
+        retPoints2D.extend(points2DActualFrame)
+        retPoints2DProjected.extend(points2DProjectedFrame)
+        retAList.extend(Aframe)
+        retBList.extend(Bframe)
+        viewportIDsFrame=[i]*len(pointIDsFrame)
+        viewportIDs.extend(viewportIDsFrame)
+        pointIDs.extend(pointIDsFrame)
+    return [pointIDs, viewportIDs, retPoints2D, retPoints2DProjected,retAList, retBList]
+
+def get_camera_vector(_rvec,_tvec, _camera_matrix):
+    retVal=[]
+    retVal.extend(np.ravel(_rvec))
+    retVal.extend(np.ravel(_tvec))
+    f=camera_matrix[0,0]
+    u0=camera_matrix[0,2]
+    v0=camera_matrix[1,2]
+    #TODO: distortion coefficients
+    retVal.extend([f])
+    retVal.extend([u0])
+    retVal.extend([v0])
+    retVal.extend([0,0])
+    return retVal
+
+def prepare_data_for_bundle_adjustment2(frame_data, marker_matrix_pairs, marker_size, camera_matrix, distortion_coefficients):
+    retPoints2D=[]
+    retPoints3D=[]
+    retPoints2DProjected=[]
+    retAList=[]
+    retBList=[]
+    pointIDs=[]
+    viewportIDs=[]
+    camVectorList=[]
+
+    global framesCount
+    for i in range(framesCount):
+        pointIDsFrame, points2D,points3D=prepare_2d_3d_correspondances_for_pnp_solver(frame_data,i,marker_matrix_pairs,marker_size)
+        points3D=np.array(np.transpose(points3D))
+        retPoints3D.extend(points3D)
+        retval, rvecCam,tvecCam=cv2.solvePnP(points3D,points2D,camera_matrix,distortion_coefficients)
+        camVector=get_camera_vector(rvecCam,tvecCam,camera_matrix)
+        #rvecCam[2]=rvecCam[2]+0.1
+        #[points2DActualFrame, points2DProjectedFrame,Aframe,Bframe]=prepareBundleAdjustmentParamsForSingleFrame(points3D,points2D,rvecCam,tvecCam,camera_matrix,distortion_coefficients)
+        retPoints2D.extend(points2D)
+        #retPoints2DProjected.extend(points2DProjectedFrame)
+        #retAList.extend(Aframe)
+        #retBList.extend(Bframe)
+        viewportIDsFrame=[i]*len(pointIDsFrame)
+        viewportIDs.extend(viewportIDsFrame)
+        pointIDs.extend(pointIDsFrame)
+        camVectorList.append(camVector)
+    return [np.array(pointIDs), np.array(viewportIDs), np.array(retPoints2D), np.array(retPoints3D),np.array(camVectorList)]
+
 
 def testVideoConversion():
     vidcap = cv2.VideoCapture("L:\\personal\\tracker\\newCode\\footage\\tracking_footage.mp4")
@@ -303,6 +399,21 @@ def testVideoConversion():
           break
       count += 1
 
+
+
+
+camera_matrix=get_camera_matrix(1920,1080,36,35)
+camera_vector=[get_camera_vector([0,0,0],[0,0,0],camera_matrix)]
+p3D=[[1.0,2,3]]
+
+corners2DNew, jac = cv2.projectPoints(np.array(p3D), (0, 0, 0), (0, 0, 0), camera_matrix, np.array([0.0,0,0,0]))
+corners2DNew2=project(p3D,np.array(camera_vector))
+
+#prepareBundleAdjustmentParamsForSinglePoint([1, 2, 3],[-1,1],[1,2,3],[1,2,3],camera_matrix,None)
+#exit()
+
+
+
 #print(get_camera_matrix(640,480,36,35))
 
 #cap = cv2.VideoCapture(0)
@@ -313,9 +424,9 @@ def testVideoConversion():
 #testVideoConversion()
 #kokodak()
 
-fig = plt.figure()
+#fig = plt.figure()
 #fig = plt.figure(figsize=plt.figaspect(1)*1.5) #Adjusts the aspect ratio and enlarges the figure (text does not enlarge)
-ax = fig.add_subplot(111, projection='3d')
+#ax = fig.add_subplot(111, projection='3d')
 #ax = fig.gca(projection='3d')
 #ax.auto_scale_xyz([0,2], [0,2], [0,2])
 aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
@@ -333,12 +444,15 @@ distCoeffs=np.zeros(shape=(1,4))
 frameData={}
 frameDataList=[]
 
-for i in range(300):
+framesCount=200
+
+for i in range(framesCount):
     frameData=frameData.copy()
     #filename="L:\\personal\\tracker\\testAnimCube\\%04d.png"%(i+1)
     #filename="L:\\personal\\tracker\\testAnimDetermineAxes\\%04d.png"%(i+1)
     #filename="L:\\personal\\tracker\\testAnimCrazyMotion3D\\%04d.png"%(i+1)
-    filename="L:\\personal\\tracker\\newCode\\footage\\tracking_footage\\frame%04d.jpg"%(i+1)
+    filename="D:\\personal\\AprilTools\\AprilTools\\footage\\tracking_footage\\frame%04d.jpg"%(i+1)
+    #filename="L:\\personal\\tracker\\newCode\\footage\\tracking_footage\\frame%04d.jpg"%(i+1)
     #print(filename)
     frame = cv2.imread(filename)#cap.read()
     gray = frame#cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -346,7 +460,7 @@ for i in range(300):
     rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(corners,0.1,camera_matrix,distCoeffs)
     #newCorners=get_corners_of_marker_in_base_marker_coordinate_system(rvecs,tvecs,ids,0,2,1)
     #print(newCorners)
-    frameData['corners']=corners
+    frameData['corners']=list(corners)
     frameData['ids']=ids
     frameData['rvecs']=rvecs
     frameData['tvecs']=tvecs
@@ -369,19 +483,35 @@ update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataLis
 update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
 update_marker_matrix_pairs(markerMatrixPairList, valid_markers_list,frameDataList,camera_matrix,distCoeffs)
 
+#markerPoints=np.array(markers_to_3d_points(markerMatrixPairList,0.1))
+#ax.scatter(markerPoints[:,0],markerPoints[:,1],markerPoints[:,2])
+#markerMatrixPairList[0]['matrix']= markerMatrixPairList[0]['matrix'].dot(get_random_transformation_matrix(np.array([[0.5,0,0]]),np.array([[0.03,0.02,0.06]])))
+#markerMatrixPairList[1]['matrix']= markerMatrixPairList[1]['matrix'].dot(get_random_transformation_matrix(np.array([[0.5,0,0]]),np.array([[0.03,0.02,0.06]])))
+#markerMatrixPairList[2]['matrix']= markerMatrixPairList[2]['matrix'].dot(get_random_transformation_matrix(np.array([[0.5,0,0]]),np.array([[0.03,0.02,0.06]])))
+#markerMatrixPairList[3]['matrix']= markerMatrixPairList[3]['matrix'].dot(get_random_transformation_matrix(np.array([[0.5,0,0]]),np.array([[0.03,0.02,0.06]])))
+#markerPoints=np.array(markers_to_3d_points(markerMatrixPairList,0.1))
+#ax.scatter(markerPoints[:,0],markerPoints[:,1],markerPoints[:,2])
+#plot_markers(markerMatrixPairList, 0.1,ax)
 
-plot_markers(markerMatrixPairList, 0.1,ax)
 
+#filename="L:\\personal\\tracker\\testNewTracking.txt"
+filename = "D:\\personal\\AprilTools\\AprilTools\\testNewTracking.txt"
+#file=open(filename,'w')
 
-filename="L:\\personal\\tracker\\testNewTracking.txt"
-file=open(filename,'w')
-
-for i in range(300):
-    line=generate_tracking_line_for_frame(frameDataList,i,markerMatrixPairList,0.1,camera_matrix,distCoeffs)
-    write_line_to_file(file,line)
-    print(i)
-file.close()
-
+#for i in range(framesCount):
+#    line=generate_tracking_line_for_frame(frameDataList,i,markerMatrixPairList,0.1,camera_matrix,distCoeffs)
+#    write_line_to_file(file,line)
+#    print(i)
+#file.close()
+#kokodak=get_random_transformation_matrix(np.array([0,0,0]),np.array([0.2,0.2,0.2]))
+#markerMatrixPairList[0]['matrix']= markerMatrixPairList[0]['matrix'].dot(get_random_transformation_matrix(np.array([[0,0,0]]),np.array([[0.2,0.2,0.2]])))
+#camera_matrix=np.array([[1000.2,0.0,107.2],[0.0,1000.2,1542.28],[0.0,0.0,1.0]])
+[point_indices,viewport_indices,points2D,points3D,camVector]=prepare_data_for_bundle_adjustment2(frameDataList,markerMatrixPairList,0.1,camera_matrix,distCoeffs)
+mainFunc(camVector,points3D,viewport_indices,point_indices,points2D)
+#kokodak=sba.core.SBA(viewport_indices,point_indices)
+#[delta_a,delta_b]=kokodak.compute(np.array(x_true),np.array(x_pred),np.array(A),np.array(B))
+#markerPoints=markerPoints+delta_b
+#ax.scatter(markerPoints[:,0],markerPoints[:,1],markerPoints[:,2])
 plt.show()
 
 '''
