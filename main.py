@@ -173,12 +173,20 @@ def update_marker_matrix_pairs(marker_matrix_pairs, valid_markers_list,frame_lis
             if not transMat is None:
                 processedFrames=processedFrames+1
                 guessMat=transMat
-                for j in range(1):
-                    currentErr=(get_reprojection_error(guessMat,marker_matrix_pairs,marker_id,camera_matrix,distortion_coefficients,0.1,frame_list,bestErr))
-                    if currentErr<bestErr:
-                        bestErr=currentErr
-                        bestMat=guessMat
-                    #guessMat=transMat.dot(get_random_transformation_matrix(np.array([[0.1,0.1,0.1]]),np.array([[0.1,0.1,0.1]])))
+                currentErr=(get_reprojection_error(guessMat,marker_matrix_pairs,marker_id,camera_matrix,distortion_coefficients,0.1,frame_list,bestErr))
+
+                errorPerPixel=((currentErr/len(frame_list))/len(valid_markers_list))/4
+                print(str(errorPerPixel)+"errorPerPixel")
+                if(errorPerPixel<0):
+                    print("KOKOKOKOK!!!!!!!!!!")
+                    bestErr=currentErr
+                    bestMat=guessMat
+                    break
+
+                if currentErr<bestErr:
+                    bestErr=currentErr
+                    bestMat=guessMat
+                #guessMat=transMat.dot(get_random_transformation_matrix(np.array([[0.1,0.1,0.1]]),np.array([[0.1,0.1,0.1]])))
 
         #print(processedFrames)
         #print(bestErr)
@@ -505,7 +513,7 @@ distCoeffs=np.zeros(shape=(1,4))
 frameData={}
 frameDataList=[]
 
-framesCount=20
+framesCount=200
 
 for i in range(framesCount):
     frameData=frameData.copy()
