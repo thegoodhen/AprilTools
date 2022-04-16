@@ -505,7 +505,7 @@ distCoeffs=np.zeros(shape=(1,4))
 frameData={}
 frameDataList=[]
 
-framesCount=200
+framesCount=20
 
 for i in range(framesCount):
     frameData=frameData.copy()
