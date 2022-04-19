@@ -7,7 +7,6 @@ bl_info = {"name": "Import AprilTools tracking data", "category": "Import-Export
 
 
 def loadSequence(theCam, thePath, frameCount):
-    frameCount=int(frameCount)
     #cam = bpy.context.scene.camera
     #filepath = r"L:\personal\tracker\realFootage4\00000.png"
     seq = bpy.data.images.load(thePath)
