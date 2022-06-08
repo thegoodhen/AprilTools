@@ -402,6 +402,7 @@ int main(int argc, char *argv[])
   getopt_add_double(getopt, 'w', "sensor-width", "-1", "Camera sensor width in mm");
   getopt_add_double(getopt, 's', "tag-size", "-1", "Tag size (black border, side of the square) in mm");
   getopt_add_bool(getopt, 'e', "estimate-focal-length", 0, "Do not track the marker; instead, estimate the camera focal length in pixels from the provided footage.");
+  getopt_add_bool(getopt, 'r', "re-sequence", 0, "Create new sequence of frame numbers instead of using frames from the filenames");
   getopt_add_bool(getopt, 'q', "quick", 0, "Speed up the process at the expense of reduced accuracy.");
 
   if (!getopt_parse(getopt, argc, argv, 1) || getopt_get_bool(getopt, "help")) {
@@ -458,7 +459,7 @@ int main(int argc, char *argv[])
   fpx=getopt_get_double(getopt,"focal-length-pixels");
   sensorWidth=getopt_get_double(getopt,"sensor-width");
   quick = getopt_get_bool(getopt, "quick");
-
+  bool reSequence = getopt_get_bool(getopt, "re-sequence");
   bool estimateF = getopt_get_bool(getopt, "estimate-focal-length");
   if(!estimateF)
   {
@@ -539,6 +540,10 @@ int main(int argc, char *argv[])
 
     const char* fileName=filesList[i].c_str();
     int frameNo=getFilenameNumber(std::string(fileName));
+    if (reSequence) {
+      frameNo=i+1;
+    }
+
     int hamm_hist[hamm_hist_max];
     memset(hamm_hist, 0, sizeof(hamm_hist));
 
